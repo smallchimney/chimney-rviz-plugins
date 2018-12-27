@@ -1,0 +1,11 @@
+<library path="lib/libchimney_rviz_plugins">
+
+    <class name="chimney_rviz_plugins/EditablePolygon"
+           type="chimney_rviz_plugins::editable_polygon::EditablePolygonController"
+           base_class_type="rviz::Display">
+        <description>
+            Displays editable geometry_msgs/PolygonStamped message
+        </description>
+    </class>
+
+</library>
