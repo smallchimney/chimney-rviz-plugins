@@ -1,18 +1,3 @@
-/**************************************************************************
- * Copyright (c) 2018 Chimney Xu. All Rights Reserve.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- **************************************************************************/
 /*
  * Software License Agreement (BSD License)
  *
@@ -49,60 +34,93 @@
  * $Id$
  *
  */
-/* *************************************************************************
-   * File Name     : EarClippingPatched.h
-   * Author        : smallchimney
-   * Author Email  : smallchimney@foxmail.com
-   * Created Time  : 2018-12-21 18:50:53
-   * Last Modified : smallchimney
-   * Modified Time : 2018-12-24 17:20:00
-************************************************************************* */
-#ifndef __CHIMNEY_RVIZ_PLUGINS_EAR_CLIPPING_PATCHED_H__
-#define __CHIMNEY_RVIZ_PLUGINS_EAR_CLIPPING_PATCHED_H__
 
-#include <pcl/surface/ear_clipping.h>
+#pragma once
 
-namespace pcl {
+#include <pcl/point_types.h>
+#include <pcl/surface/processing.h>
 
-    /**
-     * @brief  this class is total a patch for original EarClipping,
-     *         almost all behaviors are same with original.
-     * @author smallchimney
-     */
-    class EarClippingPatched : public EarClipping {
+namespace pcl
+{
+
+    /** \brief The ear clipping triangulation algorithm.
+      * The code is inspired by Flavien Brebion implementation, which is
+      * in n^3 and does not handle holes.
+      * \author Nicolas Burrus
+      * \ingroup surface
+      */
+    class PCL_EXPORTS EarClippingPatched : public MeshProcessing
+    {
+    public:
+        typedef boost::shared_ptr<EarClippingPatched> Ptr;
+        typedef boost::shared_ptr<const EarClippingPatched> ConstPtr;
+
+        using MeshProcessing::input_mesh_;
+        using MeshProcessing::initCompute;
+        /** \brief Empty constructor */
+        EarClippingPatched () : MeshProcessing (), points_ ()
+        {
+        };
 
     protected:
+        /** \brief a Pointer to the point cloud data. */
+        pcl::PointCloud<pcl::PointXYZ>::Ptr points_;
 
-        /**
-         * @brief  override the pcl::EarClipping::performProcessing()
-         *          override this just for call pcl::EarClippingPatched::triangulate()
-         * @author smallchimney
-         * @param  _Output  output the output polygonal mesh
-         */
-        void performProcessing(pcl::PolygonMesh& _Output) override;
+        /** \brief This method should get called before starting the actual computation. */
+        bool
+        initCompute () override;
 
-        /**
-         * @brief  override the pcl::EarClipping::triangulate()
-         *          override this just for call pcl::EarClippingPatched::isEar()
-         * @author smallchimney
-         * @param  _Vertices   all the vertices indexes of the polygon in clockwise
-         * @param  _Output     the triangles list
-         */
-        void triangulate(const Vertices& _Vertices, PolygonMesh& _Output);
+        /** \brief The actual surface reconstruction method.
+          * \param[out] output the output polygonal mesh
+          */
+        void
+        performProcessing (pcl::PolygonMesh &output) override;
 
-        /**
-         * @brief  override the pcl::EarClipping::isEar()
-         * @author smallchimney
-         * @param  u             the first vertex of triangle
-         * @param  v             the middle vertex of triangle
-         * @param  w             the last vertex of triangle
-         * @param  vertices      remain vertices to be checked
-         * @return               whether the triangle u-v-w is a ear, note that
-         *                       the vertex v is the main point to check for
+        /** \brief Triangulate one polygon.
+          * \param[in] vertices the set of vertices
+          * \param[out] output the resultant polygonal mesh
+          */
+        void
+        triangulate (const Vertices& vertices, PolygonMesh& output);
+
+        /** \brief Triangulate one polygon, assume the vertices are clockwise.
+          * \param[in] vertices the set of vertices
+          * \param[out] output the resultant polygonal mesh
+          */
+        size_t
+        triangulate (std::vector<uint32_t>& vertices, PolygonMesh& output);
+
+        /** \brief Check if the triangle (u,v,w) is an ear.
+          * \param[in] u the first triangle vertex
+          * \param[in] v the second triangle vertex
+          * \param[in] w the third triangle vertex
+          * \param[in] vertices a set of input vertices
+          */
+        bool
+        isEar (int u, int v, int w, const std::vector<uint32_t>& vertices);
+
+        /** \brief Check if p is inside the triangle (u,v,w).
+          * \param[in] u the first triangle vertex
+          * \param[in] v the second triangle vertex
+          * \param[in] w the third triangle vertex
+          * \param[in] p the point to check
+          */
+        bool
+        isInsideTriangle (const Eigen::Vector3f& u,
+                          const Eigen::Vector3f& v,
+                          const Eigen::Vector3f& w,
+                          const Eigen::Vector3f& p);
+
+        /** \brief Compute the cross product between 2D vectors.
+         * \param[in] p1 the first 2D vector
+         * \param[in] p2 the first 2D vector
          */
-        bool isEar(int u, int v, int w, const std::vector<uint32_t>& vertices);
+        float
+        crossProduct (const Eigen::Vector2f& p1, const Eigen::Vector2f& p2) const
+        {
+            return p1[0]*p2[1] - p1[1]*p2[0];
+        }
+
     };
 
 }
-
-#endif //__CHIMNEY_RVIZ_PLUGINS_EAR_CLIPPING_PATCHED_H__

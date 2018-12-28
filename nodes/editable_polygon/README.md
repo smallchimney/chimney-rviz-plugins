@@ -6,7 +6,7 @@ It can easily visualize the standard `geometry_msgs::Polygon` and it's vertices 
 interactive marker which can be moved in RViz. This means, you input a origin polygon, and
 you can edit the polygon whatever you want. The effect of the plugin can be seen as this:  
 ![image](../../.readme/editable-polygon.gif)  
------
+*****
 The following tips is what I think you should know before you use this plugin:  
 
 1. If you want not only visualize the polygons, but also edit it as you want.

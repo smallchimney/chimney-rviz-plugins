@@ -1,18 +1,3 @@
-/**************************************************************************
- * Copyright (c) 2018 Chimney Xu. All Rights Reserve.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- **************************************************************************/
 /*
  * Software License Agreement (BSD License)
  *
@@ -49,29 +34,33 @@
  * $Id$
  *
  */
-/* *************************************************************************
-   * File Name     : EarClippingPatched.cpp
-   * Author        : smallchimney
-   * Author Email  : smallchimney@foxmail.com
-   * Created Time  : 2018-12-21 18:59:16
-   * Last Modified : smallchimney
-   * Modified Time : 2018-12-27 16:38:20
-************************************************************************* */
+
 #include <utils/pcl/EarClippingPatched.h>
+#include <pcl/conversions.h>
 
 #define __DEBUG__ false
 
-/**
- * @brief  override the pcl::EarClipping::performProcessing()
- *          The actual surface reconstruction method.
- * @author smallchimney
- * @param  _Output  output the output polygonal mesh
- */
-void pcl::EarClippingPatched::performProcessing(pcl::PolygonMesh& _Output) {
-    _Output.polygons.clear();
-    _Output.cloud = input_mesh_ -> cloud;
-    for(const auto& polygon : input_mesh_ -> polygons)
-        triangulate(polygon, _Output);
+/////////////////////////////////////////////////////////////////////////////////////////////
+bool
+pcl::EarClippingPatched::initCompute ()
+{
+    points_.reset (new pcl::PointCloud<pcl::PointXYZ>);
+
+    if (!MeshProcessing::initCompute ())
+        return (false);
+    fromPCLPointCloud2 (input_mesh_->cloud, *points_);
+
+    return (true);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////
+void
+pcl::EarClippingPatched::performProcessing (PolygonMesh& output)
+{
+    output.polygons.clear ();
+    output.cloud = input_mesh_->cloud;
+    for (const auto &polygon : input_mesh_->polygons)
+        triangulate (polygon, output);
 #if __DEBUG__
     std::cerr << "===============================================\n"
                  "=========== triangulate finish ================\n"
@@ -79,70 +68,93 @@ void pcl::EarClippingPatched::performProcessing(pcl::PolygonMesh& _Output) {
 #endif
 }
 
-void pcl::EarClippingPatched::triangulate(const Vertices& _Vertices, PolygonMesh& _Output) {
-    const size_t n_vertices = _Vertices.vertices.size ();
+/////////////////////////////////////////////////////////////////////////////////////////////
+void
+pcl::EarClippingPatched::triangulate (const Vertices& vertices, PolygonMesh& output)
+{
+    const size_t n_vertices = vertices.vertices.size ();
 
-    if(n_vertices < 3)
+    if (n_vertices < 3)
         return;
-    else if(n_vertices == 3)
+    else if (n_vertices == 3)
     {
-        _Output.polygons.push_back(_Vertices);
+        output.polygons.emplace_back( vertices );
         return;
     }
 
-    std::vector<uint32_t> remaining_vertices(n_vertices);
+    std::vector<uint32_t> remaining_vertices = vertices.vertices;
+    size_t count = triangulate(remaining_vertices, output);
 
-    // put the clockwise check in the future to fix complex situation's decompose bug
-    remaining_vertices = _Vertices.vertices;
+    // if the input vertices order is anti-clockwise, it always left a
+    // convex polygon and start infinite loops, which means will left more
+    // than 3 points.
+    if(remaining_vertices.size() < 3)return;
 
-    // Avoid closed loops.
-    if(remaining_vertices.front () == remaining_vertices.back ())
-        remaining_vertices.erase (remaining_vertices.end () - 1);
+    output.polygons.erase(output.polygons.cend(), output.polygons.cend() + count);
+    remaining_vertices.resize(n_vertices);
+    for (size_t v = 0; v < n_vertices; v++)
+        remaining_vertices[v] = vertices.vertices[n_vertices - 1 - v];
 
 #if __DEBUG__
-    std::cerr << "begin points: (" << remaining_vertices[0] + 1;
-    for(size_t idx = 1; idx < remaining_vertices.size(); idx++)
-        std::cerr << ", " << remaining_vertices[idx] + 1;
+    std::cerr << "\n-----\n";
+    std::cerr << "reverse vertices";
+    std::cerr << "\n-----\n";
+#endif
+
+    triangulate(remaining_vertices, output);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////
+size_t
+pcl::EarClippingPatched::triangulate (std::vector<uint32_t>& vertices, PolygonMesh& output)
+{
+    size_t count = 0;
+
+    // Avoid closed loops.
+    if (vertices.front () == vertices.back ())
+        vertices.erase (vertices.end () - 1);
+
+#if __DEBUG__
+    std::cerr << "begin points: (" << vertices[0] + 1;
+    for(size_t idx = 1; idx < vertices.size(); idx++)
+        std::cerr << ", " << vertices[idx] + 1;
     std::cerr << ")\n-----\n";
 #endif
 
     // null_iterations avoids infinite loops if the polygon is not simple.
-    for(int u = static_cast<int>(remaining_vertices.size()) - 1, null_iterations = 0;
-         remaining_vertices.size() > 2 && null_iterations < static_cast<int>(remaining_vertices.size() * 2);
-         ++null_iterations, u = (u+1) % static_cast<int>(remaining_vertices.size())) {
-        int v = (u + 1) % static_cast<int>(remaining_vertices.size());
-        int w = (u + 2) % static_cast<int>(remaining_vertices.size());
+    for (int u = static_cast<int> (vertices.size ()) - 1, null_iterations = 0;
+         vertices.size () > 2 && null_iterations < static_cast<int >(vertices.size () * 2);
+         ++null_iterations, u = (u+1) % static_cast<int> (vertices.size ()))
+    {
+        int v = (u + 1) % static_cast<int> (vertices.size ());
+        int w = (u + 2) % static_cast<int> (vertices.size ());
 
-        if(isEar(u, v, w, remaining_vertices)) {
+        if (vertices.size() == 3 || isEar (u, v, w, vertices))
+        {
             Vertices triangle;
             triangle.vertices.resize (3);
-            triangle.vertices[0] = remaining_vertices[u];
-            triangle.vertices[1] = remaining_vertices[v];
-            triangle.vertices[2] = remaining_vertices[w];
-            _Output.polygons.push_back(triangle);
-            remaining_vertices.erase(remaining_vertices.begin() + v);
+            triangle.vertices[0] = vertices[u];
+            triangle.vertices[1] = vertices[v];
+            triangle.vertices[2] = vertices[w];
+            output.polygons.emplace_back (triangle);
+            vertices.erase (vertices.begin () + v);
             null_iterations = 0;
+            count++;
 #if __DEBUG__
-            std::cerr << "remain points: (" << remaining_vertices[0] + 1;
-            for(size_t idx = 1; idx < remaining_vertices.size(); idx++)
-                std::cerr << ", " << remaining_vertices[idx] + 1;
+            std::cerr << "remain points: (" << vertices[0] + 1;
+            for(size_t idx = 1; idx < vertices.size(); idx++)
+                std::cerr << ", " << vertices[idx] + 1;
             std::cerr << ")\n-----\n";
 #endif
         }
     }
+    return count;
 }
 
-/**
- * @brief  override the pcl::EarClipping::isEar()
- * @author smallchimney
- * @param  u             the first vertex of triangle
- * @param  v             the middle vertex of triangle
- * @param  w             the last vertex of triangle
- * @param  vertices      remain vertices to be checked
- * @return               whether the triangle u-v-w is a ear, note that
- *                       the vertex v is the main point to check for
- */
-bool pcl::EarClippingPatched::isEar(int u, int v, int w, const std::vector<uint32_t>& _Vertices) {
+/////////////////////////////////////////////////////////////////////////////////////////////
+bool
+pcl::EarClippingPatched::isEar (int u, int v, int w, const std::vector<uint32_t>& _Vertices)
+{
     bool ret;
     Eigen::Vector3f p_u, p_v, p_w;
     p_u = points_ -> points[_Vertices[u]].getVector3fMap();
@@ -154,18 +166,19 @@ bool pcl::EarClippingPatched::isEar(int u, int v, int w, const std::vector<uint3
     p_vu = p_u - p_v;
     p_vw = p_w - p_v;
 
+    Eigen::Vector3f cross = p_vu.cross(p_vw);
+
 #if __DEBUG__
     std::cerr << "from " << _Vertices[v] + 1 << "-" << _Vertices[u] + 1 << " to "
             << _Vertices[v] + 1 << "-" << _Vertices[w] + 1 << " is anti-clockwise? "
-            << ((p_vu[0] * p_vw[1] - p_vu[1] * p_vw[0] > 0) ? "true" : "false") << std::endl;
+            << ((cross[2] > 0) ? "true" : "false") << std::endl;
     std::cerr << _Vertices[v] + 1 << "-" << _Vertices[u] + 1 << " crossing "
             << _Vertices[v] + 1 << "-" << _Vertices[w] + 1
-            << " is " << (p_vu.cross(p_vw)).norm() << std::endl;
+            << " is " << cross.norm() << std::endl;
 #endif
 
-    Eigen::Vector3f cross = p_vu.cross(p_vw);
     // Avoid flat triangles.
-    if((cross[2] > 0) != ((p_vu.cross(p_vw)).norm() < eps)) {
+    if((cross[2] > 0) || (cross.norm() < eps)) {
         ret = false;
     } else {
         ret = true;
@@ -176,11 +189,9 @@ bool pcl::EarClippingPatched::isEar(int u, int v, int w, const std::vector<uint3
             p = points_->points[_Vertices[k]].getVector3fMap();
 
             if (isInsideTriangle(p_u, p_v, p_w, p)) {
-                if (u + 1 == 513) {
-                    std::cerr << _Vertices[k] + 1 << " is in the triangle "
-                              << _Vertices[u] + 1 << "-" << _Vertices[v] + 1 << "-"
-                              << _Vertices[w] + 1 << std::endl;
-                }
+                std::cerr << _Vertices[k] + 1 << " is in the triangle "
+                          << _Vertices[u] + 1 << "-" << _Vertices[v] + 1 << "-"
+                          << _Vertices[w] + 1 << std::endl;
                 ret = false;
                 break;
             }
@@ -193,4 +204,33 @@ bool pcl::EarClippingPatched::isEar(int u, int v, int w, const std::vector<uint3
             "): " << (ret ? "true" : "false") << std::endl;
 #endif
     return ret;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////
+bool
+pcl::EarClippingPatched::isInsideTriangle (const Eigen::Vector3f& u,
+                                    const Eigen::Vector3f& v,
+                                    const Eigen::Vector3f& w,
+                                    const Eigen::Vector3f& p)
+{
+    // see http://www.blackpawn.com/texts/pointinpoly/default.html
+    // Barycentric Coordinates
+    Eigen::Vector3f v0 = w - u;
+    Eigen::Vector3f v1 = v - u;
+    Eigen::Vector3f v2 = p - u;
+
+    // Compute dot products
+    float dot00 = v0.dot(v0);
+    float dot01 = v0.dot(v1);
+    float dot02 = v0.dot(v2);
+    float dot11 = v1.dot(v1);
+    float dot12 = v1.dot(v2);
+
+    // Compute barycentric coordinates
+    float invDenom = 1 / (dot00 * dot11 - dot01 * dot01);
+    float a = (dot11 * dot02 - dot01 * dot12) * invDenom;
+    float b = (dot00 * dot12 - dot01 * dot02) * invDenom;
+
+    // Check if point is in triangle
+    return (a >= 0) && (b >= 0) && (a + b < 1);
 }

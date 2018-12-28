@@ -5,7 +5,7 @@ project(chimney_rviz_plugins)
 set(TARGET_NAME ${PROJECT_NAME})
 
 ## Add support for C++11, supported in ROS Kinetic and newer
-SET(CMAKE_CXX_FLAGS "-std=c++11 -O2 -g -Wall ${CMAKE_CXX_FLAGS}")
+set(CMAKE_CXX_FLAGS "-std=c++11 -O2 -g -Wall ${CMAKE_CXX_FLAGS}")
 
 # Use ccache if installed to make it fast to generate object files
 find_program(CCACHE_FOUND ccache)
