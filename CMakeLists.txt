@@ -14,6 +14,8 @@ if(CCACHE_FOUND)
     set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ccache)
 endif()
 
+include(auto_detect.cmake)
+
 # Find the PCL library
 find_package(PCL REQUIRED)
 add_definitions(${PCL_DEFINITIONS})
@@ -50,67 +52,27 @@ endif()
 ## etc because they can conflict with boost signals, so define QT_NO_KEYWORDS here.
 add_definitions(-DQT_NO_KEYWORDS)
 
-# find all dir in include/
-FILE(GLOB dirs
-        RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
-        include/*
-)
-FILE(GLOB HEADER_FILES
-        RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
-        include/*.h
-)
-if(HEADER_FILES)
-    LIST(REMOVE_ITEM dirs ${HEADER_FILES})
-endif()
-# remove unsolved file
+## set the ignored nodes here
 # set(ignored_include_dirs example)
-if(ignored_include_dirs)
-    LIST(REMOVE_ITEM dirs ${ignored_header_dirs})
-endif()
-FOREACH(target ${dirs})
-    MESSAGE(STATUS "loading the dir: ${target}")
-    # search for all h files in target dir
-    FILE(GLOB_RECURSE ${target}_include
-            RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"
-            *.h
-    )
-    LIST(APPEND HEADER_FILES ${${target}_include})
-ENDFOREACH()
+# set(ignored_src_dirs example)
 
+## If the advanced_plugins is exist, add them into build
+if(EXISTS advanced_plugins)
+    CHIMNEY_INCLUDE_ALL(advanced_plugins/include)
+    CHIMNEY_SOURCE_ALL(advanced_plugins/nodes)
+endif()
+
+## search for all .h files in include dir
+CHIMNEY_INCLUDE_ALL(include)
+## search for all .c && .cpp files in include dir
+CHIMNEY_SOURCE_ALL(nodes)
+
+## add QT moc files into source list
 if(rviz_QT_VERSION VERSION_LESS "5")
     qt4_wrap_cpp(MOC_FILES ${HEADER_FILES})
 else()
     qt5_wrap_cpp(MOC_FILES ${HEADER_FILES})
 endif()
-
-# find all dir in nodes/
-FILE(GLOB dirs
-        RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
-        nodes/*
-)
-FILE(GLOB SRC_FILES
-        RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
-        nodes/*.c
-        nodes/*.cpp
-)
-if(SRC_FILES)
-    LIST(REMOVE_ITEM dirs ${SRC_FILES})
-endif()
-# remove unsolved file
-# set(ignored_src_dirs example)
-if(ignored_src_dirs)
-    LIST(REMOVE_ITEM dirs ${ignored_src_dirs})
-endif()
-FOREACH(target ${dirs})
-    MESSAGE(STATUS "loading the dir: ${target}")
-    # search for all cpp files in target dir
-    FILE(GLOB_RECURSE ${target}_srcs
-            RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
-            *.c
-            *.cpp
-    )
-    LIST(APPEND SRC_FILES ${${target}_srcs})
-ENDFOREACH()
 LIST(APPEND SRC_FILES ${MOC_FILES})
 
 add_library(${TARGET_NAME} ${SRC_FILES})
@@ -120,8 +82,7 @@ target_link_libraries(${TARGET_NAME} ${QT_LIBRARIES} ${PCL_LIBRARIES} ${catkin_L
 
 ## Install rules
 
-install(TARGETS
-        ${TARGET_NAME}
+install(TARGETS ${TARGET_NAME}
         ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
         LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
         RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})

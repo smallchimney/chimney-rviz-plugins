@@ -1,0 +1,3 @@
+[submodule "advanced_plugins"]
+	path = advanced_plugins
+	url = git@git.dslab.cf:rock-auto/advanced_rviz_plugins.git
