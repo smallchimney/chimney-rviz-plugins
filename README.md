@@ -24,26 +24,27 @@ A step by step series of examples that tell you how to get a development env run
 
 Firstly, clone the project to your local machine
 
-```
-mkdir -p /usr/local/src/chimney-rviz-plugins/src && cd /usr/local/src/chimney-rviz-plugins/src && catkin_init_workspace
-git clone https://github.com/smallchimney/chimney-rviz-plugins.git
+```bash
+mkdir -p /usr/local/src/chimney-rviz-plugins/src && cd /usr/local/src/chimney-rviz-plugins/src
+catkin_init_workspace
+git clone https://github.com/smallchimney/chimney-rviz-plugins.git --recursive
 ```
 
 Then compile it with catkin
 
-```
+```bash
 cd .. && catkin_make
 ```
 
 Now just add the plugins context to your machine
 
-```
+```bash
 echo "source /usr/local/src/chimney-rviz-plugins/devel/setup.bash" >> $HOME/.bashrc
 ```
 
 Or if you are using zsh
 
-```
+```bash
 echo "source /usr/local/src/chimney-rviz-plugins/devel/setup.zsh" >> $HOME/.zshrc
 ```
 
