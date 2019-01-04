@@ -29,11 +29,6 @@ catkin_package(
     CATKIN_DEPENDS
 )
 
-include_directories(
-        include
-        ${catkin_INCLUDE_DIRS}
-)
-
 ## This plugin includes Qt widgets, so we must include Qt.
 ## We'll use the version that rviz used so they are compatible.
 if(rviz_QT_VERSION VERSION_LESS "5")
@@ -57,10 +52,18 @@ add_definitions(-DQT_NO_KEYWORDS)
 # set(ignored_src_dirs example)
 
 ## If the advanced_plugins is exist, add them into build
-if(EXISTS advanced_plugins)
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/advanced_plugins)
+    MESSAGE(STATUS "advanced plugins found")
     CHIMNEY_INCLUDE_ALL(advanced_plugins/include)
     CHIMNEY_SOURCE_ALL(advanced_plugins/nodes)
+    set(ADVANCED_PLUGINS_INCLUDE_DIR advanced_plugins/include)
 endif()
+
+include_directories(
+        include
+        ${catkin_INCLUDE_DIRS}
+        ${ADVANCED_PLUGINS_INCLUDE_DIR}
+)
 
 ## search for all .h files in include dir
 CHIMNEY_INCLUDE_ALL(include)
