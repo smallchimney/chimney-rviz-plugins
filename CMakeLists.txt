@@ -20,14 +20,29 @@ include(auto_detect.cmake)
 find_package(PCL REQUIRED)
 add_definitions(${PCL_DEFINITIONS})
 
-find_package(catkin REQUIRED COMPONENTS rviz)
+find_package(catkin REQUIRED COMPONENTS rviz message_generation)
 
-add_definitions(-DPKG_DIR="${CMAKE_CURRENT_LIST_DIR}")
+# search for all msg files in msg dir
+FILE(GLOB_RECURSE messages_to_build RELATIVE
+        "${CMAKE_CURRENT_SOURCE_DIR}/msg"
+        "*.msg")
+# notify catkin to look at the previously found msg files
+add_message_files(FILES ${messages_to_build})
+
+generate_messages(
+        DEPENDENCIES
+        std_msgs
+        geometry_msgs
+        sensor_msgs
+)
 
 catkin_package(
     DEPENDS rviz
     CATKIN_DEPENDS
+        message_runtime
 )
+
+add_definitions(-DPKG_DIR="${CMAKE_CURRENT_LIST_DIR}")
 
 ## This plugin includes Qt widgets, so we must include Qt.
 ## We'll use the version that rviz used so they are compatible.
